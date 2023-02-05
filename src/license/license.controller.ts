@@ -3,6 +3,7 @@ import {
   Body,
   Controller,
   Delete,
+  ForbiddenException,
   Get,
   NotFoundException,
   Param,
@@ -12,15 +13,19 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { UserDto } from 'src/wordpress/dto/user.dto';
+import { Role } from 'src/wordpress/enums/role.enum';
 import { JwtAuthGuard } from 'src/wordpress/guards/jwt-auth.guard';
+import { WordpressService } from 'src/wordpress/wordpress.service';
 import { IssueOrRemoveLicenseDto } from './dto/issue-or-remove-license.dto';
 import { LicenseService } from './license.service';
 
 @Controller('licenses')
 export class LicenseController {
-  constructor(private readonly licenseService: LicenseService) {}
+  constructor(
+    private readonly licenseService: LicenseService,
+    private readonly wordpressService: WordpressService,
+  ) {}
 
-  // TODO: Only authorized users
   @UseGuards(JwtAuthGuard)
   @Get('manual-activation')
   async manualActivation(@Request() req, @Query('token') token: string) {
@@ -32,6 +37,37 @@ export class LicenseController {
     }
 
     const user: UserDto = req.user;
+
+    if (user.role == Role.Developer) {
+      const expire = new Date().toISOString().substr(0, 10);
+
+      return {
+        success: true,
+        data: await this.licenseService.getLicenseCode(token, expire),
+      };
+    }
+
+    const unpackedToken = await this.licenseService.unpackToken(token);
+
+    const license = await this.licenseService.findOrActivateLicense(
+      unpackedToken.swid,
+      user.id,
+      unpackedToken.hwid,
+    );
+
+    if (!license) {
+      throw new NotFoundException({
+        success: false,
+        message: 'You do not have active licenses',
+      });
+    }
+
+    const expire = license.expireDate.toISOString().substr(0, 10);
+
+    return {
+      success: true,
+      data: await this.licenseService.getLicenseCode(token, expire),
+    };
   }
 
   @Get('automatic-activation')
@@ -42,18 +78,72 @@ export class LicenseController {
         message: 'token cannot be empty',
       });
     }
+
+    const unpackedToken = await this.licenseService.unpackToken(token);
+
+    const user = await this.wordpressService.validateUsernameAndPassword(
+      unpackedToken.user,
+      unpackedToken.pass,
+    );
+
+    if (!user) {
+      throw new BadRequestException({
+        success: false,
+        message: 'Incorrect username or password',
+      });
+    }
+
+    if (user.role == Role.Developer) {
+      const expire = new Date().toISOString().substr(0, 10);
+
+      return {
+        success: true,
+        data: await this.licenseService.getLicenseCode(token, expire),
+      };
+    }
+
+    const license = await this.licenseService.findOrActivateLicense(
+      unpackedToken.swid,
+      user.id,
+      unpackedToken.hwid,
+    );
+
+    if (!license) {
+      throw new NotFoundException({
+        success: false,
+        message: 'You do not have active licenses',
+      });
+    }
+
+    const expire = license.expireDate.toISOString().substr(0, 10);
+
+    return {
+      success: true,
+      data: await this.licenseService.getLicenseCode(token, expire),
+    };
   }
 
-  // TODO: Only managers and administrators can issue licenses
+  @UseGuards(JwtAuthGuard)
   @Post()
-  async issueLicense(@Body() issueLicenseDto: IssueOrRemoveLicenseDto) {
-    const user = await this.licenseService.findUserById(issueLicenseDto.userId);
+  async issueLicense(
+    @Request() req,
+    @Body() issueLicenseDto: IssueOrRemoveLicenseDto,
+  ) {
+    const issuerUser: UserDto = req.user;
+
+    if (issuerUser.role != Role.Admin && issuerUser.role != Role.Manager) {
+      throw new ForbiddenException();
+    }
+
+    const user = await this.wordpressService.findUserById(
+      issueLicenseDto.userId,
+    );
 
     if (!user) {
       throw new NotFoundException('User is not found');
     }
 
-    const plugin = await this.licenseService.findPluginByProductKey(
+    const plugin = await this.wordpressService.findPluginByProductKey(
       issueLicenseDto.swid,
     );
 
@@ -64,10 +154,19 @@ export class LicenseController {
     return await this.licenseService.issueLicense(issueLicenseDto);
   }
 
-  // TODO: Only managers and administrators can remove licenses
+  @UseGuards(JwtAuthGuard)
   @Delete()
-  async removeLicense(@Body() removeLicenseDto: IssueOrRemoveLicenseDto) {
-    const user = await this.licenseService.findUserById(
+  async removeLicense(
+    @Request() req,
+    @Body() removeLicenseDto: IssueOrRemoveLicenseDto,
+  ) {
+    const issuerUser: UserDto = req.user;
+
+    if (issuerUser.role != Role.Admin && issuerUser.role != Role.Manager) {
+      throw new ForbiddenException();
+    }
+
+    const user = await this.wordpressService.findUserById(
       removeLicenseDto.userId,
     );
 
@@ -75,7 +174,7 @@ export class LicenseController {
       throw new NotFoundException('User is not found');
     }
 
-    const plugin = await this.licenseService.findPluginByProductKey(
+    const plugin = await this.wordpressService.findPluginByProductKey(
       removeLicenseDto.swid,
     );
 
@@ -88,6 +187,7 @@ export class LicenseController {
 
   @Get(':userId')
   async getUserLicenses(@Param('userId') userId: number) {
-    return await this.licenseService.userLicenseList(userId);
+    const plugins = await this.wordpressService.findPlugins();
+    return await this.licenseService.userLicenseList(userId, plugins);
   }
 }

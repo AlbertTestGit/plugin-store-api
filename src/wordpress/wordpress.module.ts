@@ -17,5 +17,6 @@ import { ConfigModule } from '@nestjs/config';
   ],
   providers: [WordpressService, JwtStrategy],
   controllers: [WordpressController],
+  exports: [WordpressService],
 })
 export class WordpressModule {}

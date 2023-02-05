@@ -1,9 +1,11 @@
-import { Injectable } from '@nestjs/common';
+import { HttpService } from '@nestjs/axios';
+import { HttpException, HttpStatus, Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { UserDto } from 'src/wordpress/dto/user.dto';
+import { catchError, firstValueFrom } from 'rxjs';
+import { PluginDto } from 'src/wordpress/dto/plugin.dto';
 import { IsNull, MoreThan, Repository } from 'typeorm';
 import { IssueOrRemoveLicenseDto } from './dto/issue-or-remove-license.dto';
-import { PluginDto } from './dto/plugin.dto';
+import { UnpackedTokenDto } from './dto/unpacked-token.dto';
 import { License } from './entities/license.entity';
 
 @Injectable()
@@ -11,37 +13,11 @@ export class LicenseService {
   constructor(
     @InjectRepository(License)
     private licenseRepository: Repository<License>,
+    private readonly httpService: HttpService,
   ) {}
 
-  private plugins: PluginDto[] = [
-    {
-      id: 1,
-      name: 'plugin1',
-      petrelVersion: '2022.1',
-      createdAt: new Date(),
-      productKey: 'wqwqw',
-    },
-    {
-      id: 1,
-      name: 'zxc plugin',
-      petrelVersion: '2023.1',
-      createdAt: new Date(),
-      productKey: 'jhjhj',
-    },
-  ];
-
-  private users: UserDto[] = [
-    {
-      id: 1,
-      username: 'admin',
-      role: 'passhash',
-    },
-    {
-      id: 2,
-      username: 'alice',
-      role: 'passhash',
-    },
-  ];
+  private logger = new Logger(LicenseService.name);
+  private readonly LICENSE_URL = process.env.LICENSE_URL;
 
   async issueLicense(issueLicenseDto: IssueOrRemoveLicenseDto) {
     const dateNow = new Date();
@@ -78,11 +54,8 @@ export class LicenseService {
     );
   }
 
-  async userLicenseList(userId) {
+  async userLicenseList(userId, plugins: PluginDto[]) {
     const result = [];
-
-    // FIXME: брать плагины из БД wordpress
-    const plugins = this.plugins;
 
     for (const plugin of plugins) {
       const unusedLicenses = await this.licenseRepository.find({
@@ -113,11 +86,71 @@ export class LicenseService {
     return result;
   }
 
-  async findUserById(id: number) {
-    return this.users.find((user) => user.id == id);
+  async unpackToken(token: string) {
+    const { data } = await firstValueFrom(
+      this.httpService.get(`${this.LICENSE_URL}/unpack?token=${token}`).pipe(
+        catchError((error) => {
+          this.logger.error(error);
+          throw new HttpException(
+            {
+              status: false,
+              message: 'problems with the licensing service',
+            },
+            HttpStatus.INTERNAL_SERVER_ERROR,
+          );
+        }),
+      ),
+    );
+
+    return data.data as UnpackedTokenDto;
   }
 
-  async findPluginByProductKey(productKey: string) {
-    return this.plugins.find((plugin) => plugin.productKey == productKey);
+  async getLicenseCode(token: string, expire: string) {
+    const { data } = await firstValueFrom(
+      this.httpService
+        .get(`${this.LICENSE_URL}/license?token=${token}&expire=${expire}`)
+        .pipe(
+          catchError((error) => {
+            this.logger.error(error);
+            throw new HttpException(
+              {
+                status: false,
+                message: 'problems with the licensing service',
+              },
+              HttpStatus.INTERNAL_SERVER_ERROR,
+            );
+          }),
+        ),
+    );
+
+    return data.data as string;
+  }
+
+  async findOrActivateLicense(swid: string, userId: number, hwid: string) {
+    const license = await this.licenseRepository.findOne({
+      where: {
+        swid,
+        userId,
+        expireDate: MoreThan(new Date()),
+        hwid,
+      },
+    });
+
+    if (license) return license;
+
+    const unusedLicenses = await this.licenseRepository.find({
+      where: {
+        swid,
+        userId,
+        expireDate: MoreThan(new Date()),
+        hwid: IsNull(),
+      },
+    });
+
+    if (unusedLicenses.length == 0) return null;
+
+    unusedLicenses[0].hwid = hwid;
+
+    return await this.licenseRepository.save(unusedLicenses[0]);
   }
 }

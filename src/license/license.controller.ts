@@ -8,7 +8,11 @@ import {
   Param,
   Post,
   Query,
+  Request,
+  UseGuards,
 } from '@nestjs/common';
+import { UserDto } from 'src/wordpress/dto/user.dto';
+import { JwtAuthGuard } from 'src/wordpress/guards/jwt-auth.guard';
 import { IssueOrRemoveLicenseDto } from './dto/issue-or-remove-license.dto';
 import { LicenseService } from './license.service';
 
@@ -17,14 +21,17 @@ export class LicenseController {
   constructor(private readonly licenseService: LicenseService) {}
 
   // TODO: Only authorized users
+  @UseGuards(JwtAuthGuard)
   @Get('manual-activation')
-  async manualActivation(@Query('token') token: string) {
+  async manualActivation(@Request() req, @Query('token') token: string) {
     if (!token) {
       throw new BadRequestException({
         success: false,
         message: 'token cannot be empty',
       });
     }
+
+    const user: UserDto = req.user;
   }
 
   @Get('automatic-activation')

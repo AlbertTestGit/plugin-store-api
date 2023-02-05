@@ -5,10 +5,13 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { License } from './license/entities/license.entity';
 import { LicenseModule } from './license/license.module';
+import { WordpressModule } from './wordpress/wordpress.module';
 
 @Module({
   imports: [
-    ConfigModule.forRoot(),
+    ConfigModule.forRoot({
+      isGlobal: true,
+    }),
     TypeOrmModule.forRoot({
       type: 'postgres',
       host: process.env.DB_HOST,
@@ -19,7 +22,19 @@ import { LicenseModule } from './license/license.module';
       entities: [License],
       synchronize: true,
     }),
+    TypeOrmModule.forRoot({
+      name: 'wordpressDb',
+      type: 'mysql',
+      host: process.env.WP_DB_HOST,
+      port: +process.env.WP_DB_PORT,
+      username: process.env.WP_DB_USER,
+      password: process.env.WP_DB_PASS,
+      database: process.env.WP_DB_NAME,
+      entities: [],
+      synchronize: false,
+    }),
     LicenseModule,
+    WordpressModule,
   ],
   controllers: [AppController],
   providers: [AppService],

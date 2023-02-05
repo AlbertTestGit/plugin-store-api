@@ -1,9 +1,9 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
+import { UserDto } from 'src/wordpress/dto/user.dto';
 import { IsNull, MoreThan, Repository } from 'typeorm';
 import { IssueOrRemoveLicenseDto } from './dto/issue-or-remove-license.dto';
 import { PluginDto } from './dto/plugin.dto';
-import { UserDto } from './dto/user.dto';
 import { License } from './entities/license.entity';
 
 @Injectable()
@@ -32,14 +32,14 @@ export class LicenseService {
 
   private users: UserDto[] = [
     {
-      ID: 1,
-      user_login: 'admin',
-      user_pass: 'passhash',
+      id: 1,
+      username: 'admin',
+      role: 'passhash',
     },
     {
-      ID: 2,
-      user_login: 'alice',
-      user_pass: 'passhash',
+      id: 2,
+      username: 'alice',
+      role: 'passhash',
     },
   ];
 
@@ -114,7 +114,7 @@ export class LicenseService {
   }
 
   async findUserById(id: number) {
-    return this.users.find((user) => user.ID == id);
+    return this.users.find((user) => user.id == id);
   }
 
   async findPluginByProductKey(productKey: string) {

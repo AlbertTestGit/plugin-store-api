@@ -2,7 +2,7 @@ import { HttpService } from '@nestjs/axios';
 import { HttpException, HttpStatus, Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { catchError, firstValueFrom } from 'rxjs';
-import { PluginDto } from 'src/wordpress/dto/plugin.dto';
+import { WordpressService } from 'src/wordpress/wordpress.service';
 import { IsNull, MoreThan, Repository } from 'typeorm';
 import { IssueOrRemoveLicenseDto } from './dto/issue-or-remove-license.dto';
 import { UnpackedTokenDto } from './dto/unpacked-token.dto';
@@ -14,6 +14,7 @@ export class LicenseService {
     @InjectRepository(License)
     private licenseRepository: Repository<License>,
     private readonly httpService: HttpService,
+    private readonly wordpressService: WordpressService,
   ) {}
 
   private logger = new Logger(LicenseService.name);
@@ -54,13 +55,19 @@ export class LicenseService {
     );
   }
 
-  async userLicenseList(userId, plugins: PluginDto[]) {
+  async userLicenseList(userId) {
+    const sql: { swid: string }[] = await this.licenseRepository.manager.query(
+      `SELECT DISTINCT "swid" FROM license WHERE "userId"='${userId}';`,
+    );
+
+    const productKeys = sql.map((p) => p.swid);
+
     const result = [];
 
-    for (const plugin of plugins) {
+    for (const productKey of productKeys) {
       const unusedLicenses = await this.licenseRepository.find({
         where: {
-          swid: plugin.productKey,
+          swid: productKey,
           userId,
           expireDate: MoreThan(new Date()),
           hwid: IsNull(),
@@ -69,15 +76,19 @@ export class LicenseService {
 
       const licenses = await this.licenseRepository.find({
         where: {
-          swid: plugin.productKey,
+          swid: productKey,
           userId,
           expireDate: MoreThan(new Date()),
         },
       });
 
+      const plugin = await this.wordpressService.findPluginByProductKey(
+        productKey,
+      );
+
       result.push({
-        productKey: plugin.productKey,
-        name: plugin.name,
+        productKey: productKey,
+        name: plugin.post_title,
         unused: unusedLicenses.length,
         total: licenses.length,
       });

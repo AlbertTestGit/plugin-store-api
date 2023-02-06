@@ -4,7 +4,6 @@ import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
 import { UserDto } from './dto/user.dto';
 import * as hasher from 'wordpress-hash-node';
-import { PluginDto } from './dto/plugin.dto';
 
 @Injectable()
 export class WordpressService {
@@ -97,17 +96,43 @@ export class WordpressService {
     return result;
   }
 
-  // TODO
-  async findPlugins(): Promise<PluginDto[]> {
+  async findPluginByProductKey(productKey: string) {
     const queryRunner = this.wordpressDataSource.createQueryRunner();
+
+    const findProductKeySql: { meta_value: string; post_id: number }[] =
+      await queryRunner.manager.query(
+        `SELECT meta_value, post_id FROM wp_postmeta WHERE meta_key='_product_attributes';`,
+      );
+
+    for (const plugin of findProductKeySql) {
+      const swid = plugin.meta_value.split('"')[9];
+
+      if (swid == productKey) {
+        const findPluginsSql: {
+          ID: number;
+          post_date: Date;
+          post_title: string;
+        }[] = await queryRunner.manager.query(
+          `SELECT ID, post_date, post_title FROM wp_posts WHERE post_type='product' AND ID='${plugin.post_id}';`,
+        );
+
+        return findPluginsSql[0];
+      }
+    }
+
+    return null;
   }
 
-  async findPluginByProductKey(productKey: string): Promise<PluginDto> {
+  async checkPluginByProductKey(productKey: string) {
     const queryRunner = this.wordpressDataSource.createQueryRunner();
 
-    // TODO: узнать схему таблицы плагинов
-    const findPluginSql = await queryRunner.manager.query(
-      `SELECT ... FROM ... WHERE ...='${productKey}'`,
-    );
+    const findPluginSql: { meta_value: string }[] =
+      await queryRunner.manager.query(
+        `SELECT meta_value FROM wp_postmeta WHERE meta_key='_product_attributes';`,
+      );
+
+    const productKeys = findPluginSql.map((p) => p.meta_value.split('"')[9]);
+
+    return productKeys.includes(productKey);
   }
 }

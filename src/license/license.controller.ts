@@ -143,11 +143,11 @@ export class LicenseController {
       throw new NotFoundException('User is not found');
     }
 
-    const plugin = await this.wordpressService.findPluginByProductKey(
-      issueLicenseDto.swid,
-    );
-
-    if (!plugin) {
+    if (
+      !(await this.wordpressService.checkPluginByProductKey(
+        issueLicenseDto.swid,
+      ))
+    ) {
       throw new NotFoundException('Plugin not found');
     }
 
@@ -174,11 +174,11 @@ export class LicenseController {
       throw new NotFoundException('User is not found');
     }
 
-    const plugin = await this.wordpressService.findPluginByProductKey(
-      removeLicenseDto.swid,
-    );
-
-    if (!plugin) {
+    if (
+      !(await this.wordpressService.checkPluginByProductKey(
+        removeLicenseDto.swid,
+      ))
+    ) {
       throw new NotFoundException('Plugin not found');
     }
 
@@ -187,7 +187,6 @@ export class LicenseController {
 
   @Get(':userId')
   async getUserLicenses(@Param('userId') userId: number) {
-    const plugins = await this.wordpressService.findPlugins();
-    return await this.licenseService.userLicenseList(userId, plugins);
+    return await this.licenseService.userLicenseList(userId);
   }
 }

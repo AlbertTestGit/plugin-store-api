@@ -12,6 +12,7 @@ import {
   Request,
   UseGuards,
 } from '@nestjs/common';
+import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { UserDto } from 'src/wordpress/dto/user.dto';
 import { Role } from 'src/wordpress/enums/role.enum';
 import { JwtAuthGuard } from 'src/wordpress/guards/jwt-auth.guard';
@@ -19,6 +20,7 @@ import { WordpressService } from 'src/wordpress/wordpress.service';
 import { IssueOrRemoveLicenseDto } from './dto/issue-or-remove-license.dto';
 import { LicenseService } from './license.service';
 
+@ApiTags('licenses')
 @Controller('licenses')
 export class LicenseController {
   constructor(
@@ -26,6 +28,8 @@ export class LicenseController {
     private readonly wordpressService: WordpressService,
   ) {}
 
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Ручная активация' })
   @UseGuards(JwtAuthGuard)
   @Get('manual-activation')
   async manualActivation(@Request() req, @Query('token') token: string) {
@@ -70,6 +74,7 @@ export class LicenseController {
     };
   }
 
+  @ApiOperation({ summary: 'Автоматическая активация' })
   @Get('automatic-activation')
   async automaticActivation(@Query('token') token: string) {
     if (!token) {
@@ -123,6 +128,8 @@ export class LicenseController {
     };
   }
 
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Выдача лицензий' })
   @UseGuards(JwtAuthGuard)
   @Post()
   async issueLicense(
@@ -154,6 +161,8 @@ export class LicenseController {
     return await this.licenseService.issueLicense(issueLicenseDto);
   }
 
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Удаление лицензий' })
   @UseGuards(JwtAuthGuard)
   @Delete()
   async removeLicense(
@@ -185,6 +194,7 @@ export class LicenseController {
     return await this.licenseService.removeLicense(removeLicenseDto);
   }
 
+  @ApiOperation({ summary: 'Количество лицензий пользователя' })
   @Get(':userId')
   async getUserLicenses(@Param('userId') userId: number) {
     return await this.licenseService.userLicenseList(userId);

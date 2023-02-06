@@ -1,8 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { AppController } from './app.controller';
-import { AppService } from './app.service';
 import { License } from './license/entities/license.entity';
 import { LicenseModule } from './license/license.module';
 import { WordpressModule } from './wordpress/wordpress.module';
@@ -36,7 +34,7 @@ import { WordpressModule } from './wordpress/wordpress.module';
     LicenseModule,
     WordpressModule,
   ],
-  controllers: [AppController],
-  providers: [AppService],
+  controllers: [],
+  providers: [],
 })
 export class AppModule {}

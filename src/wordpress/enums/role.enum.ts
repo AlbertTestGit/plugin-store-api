@@ -1,7 +1,6 @@
-// TODO
 export enum Role {
   Admin = 'administrator',
-  Manager = 'manager',
+  Manager = 'shop_manager',
   Developer = 'developer',
-  User = 'user',
+  User = 'subscriber',
 }

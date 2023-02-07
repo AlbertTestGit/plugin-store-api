@@ -42,7 +42,7 @@ export class LicenseController {
 
     const user: UserDto = req.user;
 
-    if (user.role == Role.Developer) {
+    if (user.role == Role.Developer || user.role == Role.Admin) {
       const expire = new Date().toISOString().substr(0, 10);
 
       return {
@@ -98,7 +98,7 @@ export class LicenseController {
       });
     }
 
-    if (user.role == Role.Developer) {
+    if (user.role == Role.Developer || user.role == Role.Admin) {
       const expire = new Date().toISOString().substr(0, 10);
 
       return {
@@ -150,11 +150,11 @@ export class LicenseController {
       throw new NotFoundException('User is not found');
     }
 
-    if (
-      !(await this.wordpressService.checkPluginByProductKey(
-        issueLicenseDto.swid,
-      ))
-    ) {
+    const plugin = await this.wordpressService.findPluginByProductKey(
+      issueLicenseDto.swid,
+    );
+
+    if (!plugin) {
       throw new NotFoundException('Plugin not found');
     }
 
@@ -183,11 +183,11 @@ export class LicenseController {
       throw new NotFoundException('User is not found');
     }
 
-    if (
-      !(await this.wordpressService.checkPluginByProductKey(
-        removeLicenseDto.swid,
-      ))
-    ) {
+    const plugin = await this.wordpressService.findPluginByProductKey(
+      removeLicenseDto.swid,
+    );
+
+    if (!plugin) {
       throw new NotFoundException('Plugin not found');
     }
 

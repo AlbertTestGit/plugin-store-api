@@ -4,6 +4,9 @@ import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
 import { UserDto } from './dto/user.dto';
 import * as hasher from 'wordpress-hash-node';
+import WooCommerceRestApi from '@woocommerce/woocommerce-rest-api';
+import { PluginDto } from './dto/plugin.dto';
+import { PluginRestDto } from './dto/plugin-rest.dto';
 
 @Injectable()
 export class WordpressService {
@@ -97,42 +100,74 @@ export class WordpressService {
   }
 
   async findPluginByProductKey(productKey: string) {
-    const queryRunner = this.wordpressDataSource.createQueryRunner();
+    const plugins = await this.findPlugins();
 
-    const findProductKeySql: { meta_value: string; post_id: number }[] =
-      await queryRunner.manager.query(
-        `SELECT meta_value, post_id FROM wp_postmeta WHERE meta_key='_product_attributes';`,
-      );
+    return plugins.find((plugin) => plugin.productKey == productKey);
+  }
 
-    for (const plugin of findProductKeySql) {
-      const swid = plugin.meta_value.split('"')[9];
+  async findPluginById(id: number): Promise<PluginDto> {
+    const api = new WooCommerceRestApi({
+      url: 'http://192.168.33.28',
+      consumerKey: 'ck_793b4d8d272ac77b6e3e3318bdf8e92acc2527fc',
+      consumerSecret: 'cs_e7cf27d2551ae23f3dd4ae1f67a5dab2ac782ebf',
+      version: 'wc/v3',
+    });
 
-      if (swid == productKey) {
-        const findPluginsSql: {
-          ID: number;
-          post_date: Date;
-          post_title: string;
-        }[] = await queryRunner.manager.query(
-          `SELECT ID, post_date, post_title FROM wp_posts WHERE post_type='product' AND ID='${plugin.post_id}';`,
-        );
+    return await api
+      .get(`products/${id}`)
+      .then((response) => {
+        const data = response.data as PluginRestDto;
 
-        return findPluginsSql[0];
-      }
-    }
+        const plugin = new PluginDto();
+        plugin.id = data.id;
+        plugin.name = data.name;
+        plugin.createdAt = data.date_created;
+        plugin.productKey = data.attributes[0].options[0];
 
-    return null;
+        return plugin;
+      })
+      .catch((error) => {
+        console.log(error);
+        return null;
+      });
+  }
+
+  async findPlugins(): Promise<PluginDto[]> {
+    const api = new WooCommerceRestApi({
+      url: 'http://192.168.33.28',
+      consumerKey: 'ck_793b4d8d272ac77b6e3e3318bdf8e92acc2527fc',
+      consumerSecret: 'cs_e7cf27d2551ae23f3dd4ae1f67a5dab2ac782ebf',
+      version: 'wc/v3',
+    });
+
+    return await api
+      .get(`products/`)
+      .then((response) => {
+        const data = response.data as PluginRestDto[];
+
+        const plugins = [];
+
+        for (const item of data) {
+          const plugin = new PluginDto();
+          plugin.id = item.id;
+          plugin.name = item.name;
+          plugin.createdAt = item.date_created;
+          plugin.productKey = item.attributes[0].options[0];
+
+          plugins.push(plugin);
+        }
+
+        return plugins;
+      })
+      .catch((error) => {
+        console.log(error);
+        return null;
+      });
   }
 
   async checkPluginByProductKey(productKey: string) {
-    const queryRunner = this.wordpressDataSource.createQueryRunner();
+    const plugins = await this.findPlugins();
 
-    const findPluginSql: { meta_value: string }[] =
-      await queryRunner.manager.query(
-        `SELECT meta_value FROM wp_postmeta WHERE meta_key='_product_attributes';`,
-      );
-
-    const productKeys = findPluginSql.map((p) => p.meta_value.split('"')[9]);
-
-    return productKeys.includes(productKey);
+    return !!plugins.find((plugin) => plugin.productKey == productKey);
   }
 }

@@ -1,4 +1,10 @@
-import { BadRequestException, Body, Controller, Post } from '@nestjs/common';
+import {
+  BadRequestException,
+  Body,
+  Controller,
+  Get,
+  Post,
+} from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { AuthDto } from './dto/auth.dto';
 import { WordpressService } from './wordpress.service';
@@ -21,5 +27,11 @@ export class WordpressController {
     }
 
     return this.wordpressService.generateJwt(user);
+  }
+
+  @ApiOperation({ summary: 'Получение списка плагинов' })
+  @Get('plugins')
+  async getPlugins() {
+    return this.wordpressService.findPlugins();
   }
 }

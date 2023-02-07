@@ -4,6 +4,8 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { License } from './license/entities/license.entity';
 import { LicenseModule } from './license/license.module';
 import { WordpressModule } from './wordpress/wordpress.module';
+import { PluginVersionModule } from './plugin-version/plugin-version.module';
+import { PluginVersion } from './plugin-version/entities/plugin-version.entity';
 
 @Module({
   imports: [
@@ -17,7 +19,7 @@ import { WordpressModule } from './wordpress/wordpress.module';
       username: process.env.DB_USER,
       password: process.env.DB_PASS,
       database: process.env.DB_NAME,
-      entities: [License],
+      entities: [License, PluginVersion],
       synchronize: true,
     }),
     TypeOrmModule.forRoot({
@@ -33,6 +35,7 @@ import { WordpressModule } from './wordpress/wordpress.module';
     }),
     LicenseModule,
     WordpressModule,
+    PluginVersionModule,
   ],
   controllers: [],
   providers: [],

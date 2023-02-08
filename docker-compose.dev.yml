@@ -19,5 +19,33 @@ services:
     ports:
       - "8080:8080"
   
+  wordpress:
+    container_name: wordpress
+    image: wordpress
+    ports:
+      - 80:80
+    environment:
+      WORDPRESS_DB_HOST: wpdb
+      WORDPRESS_DB_USER: wpuser
+      WORDPRESS_DB_PASSWORD: qwerty123
+      WORDPRESS_DB_NAME: wordpressdb
+    volumes:
+      - wordpress:/var/www/html
+
+  wpdb:
+    container_name: mysql
+    image: mysql:8.0.32
+    ports:
+      - "3306:3306"
+    environment:
+      MYSQL_DATABASE: wordpressdb
+      MYSQL_USER: wpuser
+      MYSQL_PASSWORD: qwerty123
+      MYSQL_RANDOM_ROOT_PASSWORD: '1'
+    volumes:
+      - wpdb:/var/lib/mysql
+  
 volumes:
   db:
+  wordpress:
+  wpdb:

@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
@@ -15,6 +15,8 @@ export class WordpressService {
     @InjectDataSource('wordpressDb')
     private wordpressDataSource: DataSource,
   ) {}
+
+  private logger = new Logger(WordpressService.name);
 
   async validateUser(username: string, passwordHash: string) {
     const queryRunner = this.wordpressDataSource.createQueryRunner();
@@ -107,9 +109,9 @@ export class WordpressService {
 
   async findPluginById(id: number): Promise<PluginDto> {
     const api = new WooCommerceRestApi({
-      url: 'http://192.168.33.28',
-      consumerKey: 'ck_793b4d8d272ac77b6e3e3318bdf8e92acc2527fc',
-      consumerSecret: 'cs_e7cf27d2551ae23f3dd4ae1f67a5dab2ac782ebf',
+      url: process.env.WOOCOMMERCE_API_URL,
+      consumerKey: process.env.WOOCOMMERCE_CK,
+      consumerSecret: process.env.WOOCOMMERCE_CS,
       version: 'wc/v3',
     });
 
@@ -127,16 +129,17 @@ export class WordpressService {
         return plugin;
       })
       .catch((error) => {
-        console.log(error);
+        // TODO:
+        this.logger.error(error);
         return null;
       });
   }
 
   async findPlugins(): Promise<PluginDto[]> {
     const api = new WooCommerceRestApi({
-      url: 'http://192.168.33.28',
-      consumerKey: 'ck_793b4d8d272ac77b6e3e3318bdf8e92acc2527fc',
-      consumerSecret: 'cs_e7cf27d2551ae23f3dd4ae1f67a5dab2ac782ebf',
+      url: process.env.WOOCOMMERCE_API_URL,
+      consumerKey: process.env.WOOCOMMERCE_CK,
+      consumerSecret: process.env.WOOCOMMERCE_CS,
       version: 'wc/v3',
     });
 
@@ -160,7 +163,8 @@ export class WordpressService {
         return plugins;
       })
       .catch((error) => {
-        console.log(error);
+        // TODO:
+        this.logger.error(error);
         return null;
       });
   }

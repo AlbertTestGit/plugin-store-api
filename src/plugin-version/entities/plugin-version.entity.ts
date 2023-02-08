@@ -10,7 +10,7 @@ export class PluginVersion {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @Column({ unique: true })
+  @Column()
   version: string;
 
   @Column()

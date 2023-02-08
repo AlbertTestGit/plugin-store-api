@@ -8,6 +8,7 @@ services:
       - "5100:3000"
     depends_on:
       - db
+
   db:
     container_name: postgres
     image: postgres:15.1-alpine

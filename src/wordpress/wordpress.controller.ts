@@ -32,6 +32,6 @@ export class WordpressController {
   @ApiOperation({ summary: 'Получение списка плагинов' })
   @Get('plugins')
   async getPlugins() {
-    return this.wordpressService.findPlugins();
+    return await this.wordpressService.findPlugins();
   }
 }

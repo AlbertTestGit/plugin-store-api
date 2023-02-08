@@ -39,7 +39,7 @@ export class UploadDto {
   gitRepository: string;
 
   @ApiPropertyOptional({ default: true })
-  beta: boolean;
+  beta?: boolean;
 
   @ApiProperty()
   @IsNotEmpty()

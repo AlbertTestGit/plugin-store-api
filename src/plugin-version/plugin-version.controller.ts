@@ -6,14 +6,32 @@ import {
   NotFoundException,
   Param,
   Post,
+  Query,
+  StreamableFile,
   UploadedFiles,
+  Request,
+  UseGuards,
   UseInterceptors,
+  ForbiddenException,
 } from '@nestjs/common';
 import { FileFieldsInterceptor } from '@nestjs/platform-express';
-import { ApiConsumes, ApiOperation, ApiTags } from '@nestjs/swagger';
+import {
+  ApiBearerAuth,
+  ApiConsumes,
+  ApiOperation,
+  ApiQuery,
+  ApiTags,
+} from '@nestjs/swagger';
 import { WordpressService } from 'src/wordpress/wordpress.service';
 import { UploadDto } from './dto/upload.dto';
 import { PluginVersionService } from './plugin-version.service';
+import * as fs from 'node:fs';
+import { createReadStream } from 'node:fs';
+import { join } from 'node:path';
+import slugify from 'slugify';
+import { JwtAuthGuard } from 'src/wordpress/guards/jwt-auth.guard';
+import { Role } from 'src/wordpress/enums/role.enum';
+import { UserDto } from 'src/wordpress/dto/user.dto';
 
 @ApiTags('plugin vesions')
 @Controller('plugin-version')
@@ -23,9 +41,10 @@ export class PluginVersionController {
     private readonly wordpressService: WordpressService,
   ) {}
 
-  // TODO: Проверить авторизацию
+  @ApiBearerAuth()
   @ApiOperation({ summary: 'Загрузка новой версии плагина на сервер' })
   @ApiConsumes('multipart/form-data')
+  @UseGuards(JwtAuthGuard)
   @Post('upload')
   @UseInterceptors(
     FileFieldsInterceptor([
@@ -36,6 +55,7 @@ export class PluginVersionController {
     ]),
   )
   async upload(
+    @Request() req,
     @UploadedFiles()
     files: {
       pluginFile?: Express.Multer.File[];
@@ -45,7 +65,18 @@ export class PluginVersionController {
     },
     @Body() uploadDto: UploadDto,
   ) {
+    const user: UserDto = req.user;
+    uploadDto.pluginId = JSON.parse(String(uploadDto.pluginId));
+
+    if (user.role != Role.Admin && user.role != Role.Developer) {
+      throw new ForbiddenException();
+    }
+
     if (!files || !files.pluginFile) {
+      if (files.helpFileEn) fs.unlinkSync(files.helpFileEn[0].path);
+      if (files.helpFileRu) fs.unlinkSync(files.helpFileRu[0].path);
+      if (files.helpFileKz) fs.unlinkSync(files.helpFileKz[0].path);
+
       throw new BadRequestException('pluginFile cannot be empty');
     }
 
@@ -59,23 +90,153 @@ export class PluginVersionController {
     );
 
     if (!plugin) {
+      if (files.pluginFile) fs.unlinkSync(files.pluginFile[0].path);
+      if (files.helpFileEn) fs.unlinkSync(files.helpFileEn[0].path);
+      if (files.helpFileRu) fs.unlinkSync(files.helpFileRu[0].path);
+      if (files.helpFileKz) fs.unlinkSync(files.helpFileKz[0].path);
+
       throw new NotFoundException('Plugin not found');
     }
 
-    // TODO: Проверить version на уникальность
+    const pluginVersion = await this.pluginVersionService.findByVersion(
+      uploadDto.pluginId,
+      uploadDto.version,
+    );
 
-    return 1;
+    if (pluginVersion) {
+      if (files.pluginFile) fs.unlinkSync(files.pluginFile[0].path);
+      if (files.helpFileEn) fs.unlinkSync(files.helpFileEn[0].path);
+      if (files.helpFileRu) fs.unlinkSync(files.helpFileRu[0].path);
+      if (files.helpFileKz) fs.unlinkSync(files.helpFileKz[0].path);
+
+      throw new BadRequestException('This version already exists');
+    }
+
+    return await this.pluginVersionService.uploadVersion(uploadDto, user);
   }
 
-  @ApiOperation({ summary: 'Получение списка версий плагина' })
-  @Get(':pluginId')
-  async getPluginVersions(@Param('pluginId') pluginId: number) {
-    return `Version list for plugin #${pluginId}`;
+  @ApiOperation({ summary: 'Скачать версию плагина' })
+  @Get('download')
+  async download(@Query('id') id: number) {
+    const pluginVersion = await this.pluginVersionService.findById(id);
+
+    if (!pluginVersion) {
+      throw new NotFoundException('Plugin Version not found');
+    }
+
+    const pluginFile = createReadStream(
+      join(process.cwd(), 'upload', pluginVersion.fileName),
+    );
+
+    const plugin = await this.wordpressService.findPluginById(
+      pluginVersion.pluginId,
+    );
+    console.log(plugin);
+    const pluginFileName =
+      slugify(`${plugin.name}-${pluginVersion.version}`) + '.pip';
+
+    return new StreamableFile(pluginFile, {
+      disposition: `attachment; filename="${pluginFileName}"`,
+    });
+  }
+
+  @ApiOperation({
+    summary: 'Получение плагина по его версии или списка версий плагина',
+  })
+  @ApiQuery({ name: 'version', required: false })
+  @Get('list/:pluginId')
+  async getOneOrListPluginVersions(
+    @Param('pluginId') pluginId: number,
+    @Query('version') version?: string,
+  ) {
+    const plugin = await this.wordpressService.findPluginById(pluginId);
+
+    if (!plugin) {
+      throw new NotFoundException('Plugin not found');
+    }
+
+    if (version) {
+      const pluginVersion = await this.pluginVersionService.findByVersion(
+        pluginId,
+        version,
+      );
+
+      if (!pluginVersion) {
+        throw new NotFoundException('Plugin Version not found');
+      }
+
+      return pluginVersion;
+    }
+
+    return await this.pluginVersionService.findPluginVersions(pluginId);
   }
 
   @ApiOperation({ summary: 'Получение текущей версии плагина' })
-  @Get(':pluginId/current')
+  @Get('current/:pluginId')
   async getCurrentPluginVersion(@Param('pluginId') pluginId: number) {
-    return `Current version for plugin #${pluginId}`;
+    const plugin = await this.wordpressService.findPluginById(pluginId);
+
+    if (!plugin) {
+      throw new NotFoundException('Plugin not found');
+    }
+
+    const pluginVersion = await this.pluginVersionService.getCurrentVersion(
+      pluginId,
+    );
+
+    if (!pluginVersion) {
+      throw new NotFoundException('Current version not found');
+    }
+
+    return pluginVersion;
+  }
+
+  @ApiOperation({ summary: '' })
+  @Get(':pluginVersionId')
+  async getOne(@Param('pluginVersionId') pluginVersionId: number) {
+    const pluginVersion = await this.pluginVersionService.findById(
+      pluginVersionId,
+    );
+
+    if (!pluginVersion) {
+      throw new NotFoundException('Plugin Version not found');
+    }
+
+    return pluginVersion;
+  }
+
+  @ApiQuery({ name: 'beta', required: false })
+  @ApiQuery({ name: 'deprecated', required: false })
+  @Post('switch/:pluginVersionId')
+  async switchBetaOrDeprecated(
+    @Param('pluginVersionId') pluginVersionId: number,
+    @Query('beta') beta?: boolean,
+    @Query('deprecated') deprecated?: boolean,
+  ) {
+    if (beta == null && deprecated == null) {
+      throw new BadRequestException('beta or deprecated cannot be empty');
+    }
+
+    const pluginVersion = await this.pluginVersionService.findById(
+      pluginVersionId,
+    );
+
+    if (!pluginVersion) {
+      throw new NotFoundException('Plugin Version not found');
+    }
+
+    if (beta && `${beta}` != 'true' && `${beta}` != 'false') {
+      throw new BadRequestException('invalid value in beta');
+    }
+
+    if (deprecated && `${deprecated}` != 'true' && `${deprecated}` != 'false') {
+      throw new BadRequestException('invalid value in deprecated');
+    }
+
+    return await this.pluginVersionService.updateBeta(
+      pluginVersion,
+      JSON.parse(String(beta || null)),
+      JSON.parse(String(deprecated || null)),
+    );
   }
 }

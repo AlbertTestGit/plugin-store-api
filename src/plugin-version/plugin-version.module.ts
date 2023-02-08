@@ -9,7 +9,7 @@ import { WordpressModule } from 'src/wordpress/wordpress.module';
 @Module({
   imports: [
     TypeOrmModule.forFeature([PluginVersion]),
-    // MulterModule.register({ dest: './upload' }),
+    MulterModule.register({ dest: './upload' }),
     WordpressModule,
   ],
   controllers: [PluginVersionController],

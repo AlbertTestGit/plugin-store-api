@@ -19,7 +19,7 @@ export class WordpressService {
   private logger = new Logger(WordpressService.name);
 
   async validateUser(username: string, passwordHash: string) {
-    const queryRunner = this.wordpressDataSource.createQueryRunner();
+    const queryRunner = this.wordpressDataSource;
 
     const findUserSql: { ID: number; user_login: string }[] =
       await queryRunner.manager.query(
@@ -44,7 +44,7 @@ export class WordpressService {
   }
 
   async validateUsernameAndPassword(username: string, password: string) {
-    const queryRunner = this.wordpressDataSource.createQueryRunner();
+    const queryRunner = this.wordpressDataSource;
 
     const findUserSql: { ID: number; user_login: string; user_pass: string }[] =
       await queryRunner.manager.query(
@@ -77,7 +77,7 @@ export class WordpressService {
   }
 
   async findUserById(id: number) {
-    const queryRunner = this.wordpressDataSource.createQueryRunner();
+    const queryRunner = this.wordpressDataSource;
 
     const findUserSql: { ID: number; user_login: string }[] =
       await queryRunner.manager.query(
